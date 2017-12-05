@@ -7,6 +7,8 @@
 #install.packages("robotstxt")
 #install.packages("purrr") #need walk function
 #install.packages("downloader")
+#install.packages("jsonlite")
+#install.packages("R.utils")
 require(readxl)
 require(dplyr)
 require(tidyverse)
@@ -15,5 +17,7 @@ require(stringr)
 require(robotstxt)
 require(purrr)
 require(downloader)
+require(jsonlite)
+require(R.utils)
 
 ###################################################################################
