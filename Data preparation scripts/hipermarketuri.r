@@ -77,6 +77,8 @@ magazine_Auchan<-regmatches(html_text(magazine_Auchan),
 magazine_Auchan<-as.character(magazine_Auchan)
 magazine_Auchan<-paste(magazine_Auchan,"]")
 magazine_Auchan<-fromJSON(magazine_Auchan)
+magazine_Auchan<-cbind(magazine_Auchan, hypermarket="Auchan")
+magazine_Auchan<-magazine_Auchan[c(19,18)]
 ###################################################################################
                                     #Carrefour
 ###################################################################################
@@ -100,9 +102,75 @@ for(i in 1:nrow(magazine_Carrefour)){
    rm(i,j)
 }
 magazine_Carrefour<-as.data.frame(magazine_Carrefour)
+magazine_Carrefour<-cbind(magazine_Carrefour, hypermarket="Carrefour")
+magazine_Carrefour<-magazine_Carrefour[c(5,6)]
+names(magazine_Carrefour)=c("city","hypermarket")
 ###################################################################################
                                      #Cora
 ###################################################################################
 magazine_Cora<-read_html("data_html/cora.html") #Cora HTML file contents
 ###################################################################################
-#in progress, tomorrow is another day ^^
+magazine_Cora<-regmatches(as.character(magazine_Cora),
+             gregexpr("(?<=<h5 class=\"store-name\">).*?(?=</h5>)", magazine_Cora, perl = TRUE)
+)
+magazine_Cora<-str_replace_all(str_replace_all(magazine_Cora[[1]], regex("Lujerului|Pantelimon|Sos. Alexandriei|Sun Plaza"),"Bucuresti"), regex("Constanta\\s.*"),"Constanta")
+magazine_Cora<-as.data.frame(cbind(magazine_Cora, hypermarket="Cora"))
+colnames(magazine_Cora)<-c("city","hypermarket") #renaming properly the first column, as it's name is long
+###################################################################################
+                                    #Metro
+###################################################################################
+magazine_Metro<-read_html("data_html/metro.html") #Metro HTML file contents
+###################################################################################
+magazine_Metro<-magazine_Metro %>%
+   html_nodes("#pageph_0_contentph_0_StoreLocatorPanel strong") %>%
+   html_text() %>%
+   discard(str_detect, "Punct") #exclude Punct locations
+magazine_Metro<-str_replace_all(magazine_Metro, regex("\\s\\d"),"")
+magazine_Metro<-str_replace_all(magazine_Metro,regex("Bucuresti\\s.*"),"Bucuresti")
+magazine_Metro<-data.frame(city=magazine_Metro, hypermarket="Metro")
+###################################################################################
+                                    #Selgros
+###################################################################################
+magazine_Selgros<-read_html("data_html/selgros.html") #Selgros HTML file contents
+###################################################################################
+magazine_Selgros<-magazine_Selgros %>%
+   html_nodes(".select option") %>%
+   html_text() %>%
+   discard(str_detect,"Select") #exclude unwanted values
+
+magazine_Selgros<-str_replace_all(
+   str_replace_all(
+      str_replace_all(magazine_Selgros,regex("București\\s.*"),"București"),
+      regex("Mureș\\s.*"),"Târgu Mureș"),"Constanța\\s.*","Constanța")
+magazine_Selgros<-data.frame(city=stringi::stri_trans_general(magazine_Selgros,"Latin-ASCII"), hypermarket="Selgros")
+###################################################################################
+      #Kaufland - impossible for the moment to webscrap it's website
+###################################################################################
+###################################################################################
+###################################################################################
+                        #Hypermarkets - data consolidation
+###################################################################################
+hypermarkets<- rbind(magazine_Auchan,
+                     magazine_Carrefour,
+                     magazine_Cora,
+                     magazine_Metro,
+                     magazine_Selgros
+                     )
+#exceptions cleaning(cluj and drobeta turnu severin can't be joined with stringdist_join, so it need to be renamed properly)
+hypermarkets[,2]<-str_replace_all(hypermarkets[,2],regex("(cluj.*|Cluj.*)"),"CLUJ-NAPOCA")
+hypermarkets[,2]<-str_replace_all(hypermarkets[,2],regex("(drobeta.*|Drobeta.*)"),"DROBETA-TURNU SEVERIN")
+###################################################################################
+#Time to use fuzzy join between reference tables
+###################################################################################
+hypermarkets<-stringdist_join(hypermarkets,
+                      populatia_romaniei_per_localitati,
+                      by=c("city"="Localitati"),
+                      max_dist = 0.1, 
+                      method = "cosine",
+                      mode="inner",
+                      distance_col = "diferenta",
+                      ignore_case = TRUE
+)
+#Hypermarkets aggregation
+hypermarkets_aggregated<-count(hypermarkets, "Location"=hypermarkets$Localitati, "Population"=hypermarkets$Total, "Hypermarket"=hypermarkets$hypermarket)
+###################################################################################
